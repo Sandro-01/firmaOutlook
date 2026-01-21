@@ -1,7 +1,13 @@
 # ==============================================================================
 # Script: Installa_Firma_GPO.ps1
-# Versione: 12.0 - FIX CRITICO: Firma predefinita in formato Binary Unicode
+# Versione: 12.1 - FIX CRITICO: Chiusura automatica Outlook prima di scrivere registro
 # Autore: Sandro - IT Specialist Carton Group
+# ==============================================================================
+# Novità v12.1:
+# - FIX CRITICO: Chiude automaticamente Outlook prima di scrivere il registro
+# - Previene che Outlook cancelli le firme impostate dallo script
+# - Attende 3 secondi dopo la chiusura per garantire salvataggio stato
+# - Logging dettagliato del processo Outlook se rilevato
 # ==============================================================================
 # Novità v12.0:
 # - FIX CRITICO: Conversione valori firma da String a Binary Unicode
@@ -42,8 +48,69 @@ function Convert-ToRegistryBinary {
     return $bytes
 }
 
+# ========================================================================
+# FUNZIONE: Chiude Outlook se in esecuzione
+# ========================================================================
+function Close-OutlookIfRunning {
+    Write-Log "Verifica se Outlook è in esecuzione..." "INFO"
+
+    $outlookProcesses = Get-Process -Name "outlook" -ErrorAction SilentlyContinue
+
+    if ($outlookProcesses) {
+        Write-Log "CRITICO: Outlook è in esecuzione!" "WARNING"
+        Write-Log "  Processi trovati: $($outlookProcesses.Count)" "INFO"
+
+        foreach ($proc in $outlookProcesses) {
+            Write-Log "  - PID: $($proc.Id) | Memoria: $(($proc.WorkingSet64 / 1MB).ToString('F2')) MB" "INFO"
+        }
+
+        Write-Log "Chiusura Outlook per prevenire conflitti con registro..." "WARNING"
+
+        try {
+            # Tentativo di chiusura graceful
+            $outlookProcesses | ForEach-Object {
+                Write-Log "  Tentativo chiusura graceful PID: $($_.Id)" "INFO"
+                $_.CloseMainWindow() | Out-Null
+            }
+
+            # Attendi 2 secondi per chiusura graceful
+            Start-Sleep -Seconds 2
+
+            # Verifica se ancora in esecuzione
+            $stillRunning = Get-Process -Name "outlook" -ErrorAction SilentlyContinue
+
+            if ($stillRunning) {
+                Write-Log "  Chiusura graceful fallita, forzo chiusura..." "WARNING"
+                $stillRunning | Stop-Process -Force -ErrorAction SilentlyContinue
+                Start-Sleep -Seconds 1
+            }
+
+            # Attendi ulteriori 3 secondi per permettere a Outlook di salvare stato
+            Write-Log "  Attendo 3 secondi per completamento operazioni Outlook..." "INFO"
+            Start-Sleep -Seconds 3
+
+            # Verifica finale
+            $finalCheck = Get-Process -Name "outlook" -ErrorAction SilentlyContinue
+            if ($finalCheck) {
+                Write-Log "  ATTENZIONE: Outlook ancora in esecuzione dopo chiusura forzata!" "ERROR"
+                return $false
+            } else {
+                Write-Log "  Outlook chiuso con successo" "SUCCESS"
+                return $true
+            }
+
+        } catch {
+            Write-Log "  Errore durante chiusura Outlook: $_" "ERROR"
+            return $false
+        }
+    } else {
+        Write-Log "Outlook non in esecuzione - OK" "SUCCESS"
+        return $true
+    }
+}
+
 Write-Log "==========================================" "INFO"
-Write-Log "INSTALLAZIONE FIRMA v12.0" "INFO"
+Write-Log "INSTALLAZIONE FIRMA v12.1" "INFO"
 Write-Log "Utente: $env:USERNAME" "INFO"
 Write-Log "Computer: $env:COMPUTERNAME" "INFO"
 Write-Log "Data: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" "INFO"
@@ -303,6 +370,21 @@ try {
     Write-Log "File configurati come modificabili: $filesFixed" "SUCCESS"
 
     # ========================================================================
+    # CHIUSURA OUTLOOK PRIMA DI MODIFICARE REGISTRO (v12.1)
+    # ========================================================================
+    Write-Log "==========================================" "INFO"
+    Write-Log "FASE CRITICA: Preparazione scrittura registro firma" "INFO"
+    Write-Log "==========================================" "INFO"
+
+    $outlookClosed = Close-OutlookIfRunning
+
+    if (-not $outlookClosed) {
+        Write-Log "ATTENZIONE: Impossibile chiudere Outlook completamente" "WARNING"
+        Write-Log "Lo script continuerà, ma i dropdown potrebbero rimanere vuoti" "WARNING"
+        Write-Log "SOLUZIONE: Chiudere manualmente Outlook e rieseguire lo script" "WARNING"
+    }
+
+    # ========================================================================
     # IMPOSTAZIONE FIRMA PREDEFINITA - METODO 1: MailSettings (Fallback)
     # ========================================================================
     Write-Log "Metodo 1: Impostazione firma in MailSettings (fallback per GPO)..." "INFO"
@@ -473,7 +555,12 @@ try {
     Write-Log "MailSettings configurato: $(if($mailSettingsWritten){'SI'}else{'NO'})" "INFO"
     Write-Log "==========================================" "INFO"
     Write-Log "" "INFO"
-    Write-Log "IMPORTANTE: Riavviare Outlook per applicare le modifiche" "INFO"
+    if ($outlookClosed -and $outlookProcesses) {
+        Write-Log "IMPORTANTE: Outlook è stato chiuso automaticamente per prevenire conflitti" "INFO"
+        Write-Log "            Puoi riaprire Outlook - i dropdown saranno popolati correttamente" "SUCCESS"
+    } else {
+        Write-Log "IMPORTANTE: Riavviare Outlook per applicare le modifiche" "INFO"
+    }
     Write-Log "Log completo: $LogFile" "INFO"
     Write-Log "==========================================" "INFO"
 

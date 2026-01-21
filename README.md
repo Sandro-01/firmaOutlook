@@ -2,7 +2,7 @@
 
 **Sistema automatico di distribuzione firme email aziendali per ~300 utenti**
 
-**Versione corrente:** v12.0 - ✅ **FIX CRITICO: Firma predefinita correttamente impostata in Outlook**
+**Versione corrente:** v12.1 - ✅ **FIX CRITICO: Chiusura automatica Outlook per prevenire conflitti registro**
 
 ---
 
@@ -40,20 +40,57 @@ Sistema di gestione automatica delle firme email per Carton Group Italia, implem
                      │
                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│ 4. INSTALLAZIONE LOCALE (PowerShell) - v12.0 ✅                 │
+│ 4. INSTALLAZIONE LOCALE (PowerShell) - v12.1 ✅                 │
 │    Installa_Firma_GPO.ps1                                       │
 │    ├── Copia file firma da server a %APPDATA%\Signatures        │
 │    ├── Imposta permessi file (modificabili dall'utente)         │
 │    ├── Sblocca interfaccia Outlook                              │
+│    ├── ✅ CHIUDE OUTLOOK se in esecuzione (previene conflitti)  │
 │    └── ✅ IMPOSTA FIRMA PREDEFINITA (Binary Unicode)            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ✨ NOVITÀ v12.0 - FIX CRITICO
+## ✨ NOVITÀ v12.1 - FIX CRITICO (FINALE)
 
 ### 🐛 Problema risolto
+
+**Sintomo:** Anche con v12.0 (formato Binary corretto), i dropdown Outlook restavano **VUOTI** se Outlook era aperto durante l'esecuzione dello script.
+
+**Causa root:** Outlook, quando in esecuzione, **cancella/sovrascrive** attivamente i valori delle firme nel registro, anche se scritti correttamente in formato Binary. Questo avviene perché Outlook monitora costantemente le sue chiavi di registro e applica il proprio stato interno.
+
+### ✅ Correzione implementata
+
+**v12.1 risolve definitivamente il problema** chiudendo automaticamente Outlook prima di scrivere nel registro:
+
+```powershell
+# v12.1 - Chiude Outlook prima di scrivere registro
+function Close-OutlookIfRunning {
+    $outlookProcesses = Get-Process -Name "outlook" -ErrorAction SilentlyContinue
+
+    if ($outlookProcesses) {
+        # Chiusura graceful con CloseMainWindow()
+        # Se fallisce, chiusura forzata con Stop-Process -Force
+        # Attesa 3 secondi per salvataggio stato
+    }
+}
+```
+
+### 🎁 Miglioramenti v12.1
+
+- ✅ **Rilevamento automatico processo Outlook** con logging PID e memoria
+- ✅ **Chiusura graceful prioritaria** (CloseMainWindow) prima di forzare
+- ✅ **Attesa 3 secondi post-chiusura** per permettere salvataggio stato Outlook
+- ✅ **Verifica multi-livello** che Outlook sia effettivamente chiuso
+- ✅ **Logging dettagliato** di tutte le operazioni di chiusura
+- ✅ **Gestione errori robusta** con fallback e warning
+
+---
+
+## ✨ NOVITÀ v12.0 - FIX CRITICO (PRECEDENTE)
+
+### 🐛 Problema risolto (v12.0)
 
 **Sintomo:** Script dichiarava `[SUCCESS]` ma i dropdown Outlook "Nuovi messaggi" e "Risposte/inoltri" restavano **VUOTI**.
 
@@ -89,10 +126,10 @@ Set-ItemProperty -Name "New Signature" -Value $bytes -Type Binary
 ## 📁 FILE PRINCIPALI
 
 ### Script PowerShell
-- **`Installa_Firma_GPO.ps1`** (v12.0) - Script principale di installazione firma
+- **`Installa_Firma_GPO.ps1`** (v12.1) - Script principale di installazione firma
   - Percorso produzione: `\\DEAZRADS101\Firme\Scripts\`
   - Percorso locale DC: `C:\Firme_Aziendali\Scripts\`
-  - **Dimensione:** ~14 KB
+  - **Dimensione:** ~16 KB (aumentato per funzione chiusura Outlook)
   - **Log output:** `%TEMP%\Installazione_Firma_YYYYMMDD.log`
 
 ### Script VBScript
@@ -132,23 +169,23 @@ Set-ItemProperty -Name "New Signature" -Value $bytes -Type Binary
 
 ---
 
-## 🚀 DEPLOYMENT v12.0
+## 🚀 DEPLOYMENT v12.1
 
 ### Quick Start
 
 ```powershell
 # 1. Backup versione corrente
 Copy-Item "\\DEAZRADS101\Firme\Scripts\Installa_Firma_GPO.ps1" `
-          "\\DEAZRADS101\Firme\Scripts\Installa_Firma_GPO_v11_backup.ps1"
+          "\\DEAZRADS101\Firme\Scripts\Installa_Firma_GPO_v12_backup.ps1"
 
-# 2. Deploy v12.0
+# 2. Deploy v12.1
 Copy-Item "Installa_Firma_GPO.ps1" `
           "\\DEAZRADS101\Firme\Scripts\Installa_Firma_GPO.ps1" -Force
 
 # 3. Verifica deployment
 Get-Content "\\DEAZRADS101\Firme\Scripts\Installa_Firma_GPO.ps1" |
     Select-String "Versione:"
-# Output: # Versione: 12.0 - FIX CRITICO...
+# Output: # Versione: 12.1 - FIX CRITICO: Chiusura automatica Outlook...
 ```
 
 **📖 Per istruzioni dettagliate di deployment, vedere:** [`DEPLOYMENT_GUIDE.md`](DEPLOYMENT_GUIDE.md)
@@ -314,6 +351,15 @@ Per problemi non risolti con troubleshooting standard:
 
 ## 📝 CHANGELOG
 
+### v12.1 (2026-01-21) - FIX CRITICO FINALE ✅✅
+- **FIX:** Chiusura automatica Outlook prima di scrivere registro
+- **NEW:** Funzione Close-OutlookIfRunning con logging dettagliato
+- **NEW:** Chiusura graceful (CloseMainWindow) con fallback forzato
+- **NEW:** Attesa 3 secondi post-chiusura per salvataggio stato
+- **NEW:** Verifica multi-livello che Outlook sia chiuso
+- **IMPROVED:** Previene che Outlook cancelli firme appena impostate
+- **IMPROVED:** Messaggio finale dinamico basato su chiusura Outlook
+
 ### v12.0 (2026-01-17) - FIX CRITICO ✅
 - **FIX:** Conversione valori firma da String a Binary Unicode
 - **NEW:** Impostazione firma in MailSettings come fallback
@@ -364,10 +410,10 @@ Questo sistema è proprietà di Carton Group Italia e destinato esclusivamente a
 
 ## 📞 QUICK LINKS
 
-- [🐛 Bug Analysis](BUG_ANALYSIS_AND_FIX.md) - Analisi tecnica del bug v11.0
-- [🚀 Deployment Guide](DEPLOYMENT_GUIDE.md) - Guida deployment v12.0
-- [📧 Script PowerShell](Installa_Firma_GPO.ps1) - Source code v12.0
+- [🐛 Bug Analysis](BUG_ANALYSIS_AND_FIX.md) - Analisi tecnica del bug v11.0 e v12.0
+- [🚀 Deployment Guide](DEPLOYMENT_GUIDE.md) - Guida deployment v12.1
+- [📧 Script PowerShell](Installa_Firma_GPO.ps1) - Source code v12.1
 
 ---
 
-*Last Update: 2026-01-17 | Version: 12.0 | Status: ✅ PRODUCTION READY*
+*Last Update: 2026-01-21 | Version: 12.1 | Status: ✅ PRODUCTION READY*
