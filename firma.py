@@ -229,10 +229,24 @@ class ADSignatureManager:
             self.users = []
             for entry in self.connection.entries:
                 def get_attr(attr_name):
-                    if hasattr(entry, attr_name):
-                        val = getattr(entry, attr_name)
-                        if val and str(val) != '[]':
-                            return str(val).strip('[]')
+                    try:
+                        if hasattr(entry, attr_name):
+                            val = getattr(entry, attr_name)
+                            if val:
+                                # ldap3 restituisce oggetti con .value o .values
+                                if hasattr(val, 'value') and val.value:
+                                    return str(val.value).strip()
+                                elif hasattr(val, 'values') and val.values:
+                                    return str(val.values[0]).strip()
+                                else:
+                                    val_str = str(val).strip()
+                                    # Rimuovi parentesi quadre se presenti
+                                    if val_str.startswith('[') and val_str.endswith(']'):
+                                        val_str = val_str[1:-1].strip("'\"")
+                                    if val_str and val_str != '[]':
+                                        return val_str
+                    except:
+                        pass
                     return ''
 
                 user = {
