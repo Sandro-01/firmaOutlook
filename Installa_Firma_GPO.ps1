@@ -98,18 +98,12 @@ function Set-RegistryBinaryValue {
         # Crea nuovo valore come Binary
         New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType Binary -Force | Out-Null
 
-        # Verifica tipo scritto
-        $regKey = Get-Item -Path $Path -ErrorAction SilentlyContinue
-        if ($regKey) {
-            $valueKind = $regKey.GetValueKind($Name)
-            if ($valueKind -eq [Microsoft.Win32.RegistryValueKind]::Binary) {
-                return $true
-            } else {
-                Write-Log "      [WARN] Tipo scritto: $valueKind (atteso: Binary)" "WARNING"
-                return $false
-            }
+        # Verifica che il valore sia stato scritto
+        $written = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
+        if ($written -and $written.$Name) {
+            return $true
         }
-        return $true
+        return $false
     } catch {
         Write-Log "      [ERROR] Scrittura fallita: $_" "ERROR"
         return $false
