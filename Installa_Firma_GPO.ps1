@@ -528,8 +528,8 @@ try {
                         # ✅ FIX v12.2: Usa funzione sicura con Remove + New-ItemProperty
                         $signatureBinary = Convert-ToRegistryBinary -Value $SignatureName
 
-                        # Converti PSPath in path standard per Get-Item
-                        $accountRegPath = $account.PSPath -replace 'Microsoft\.PowerShell\.Core\\Registry::', ''
+                        # Usa direttamente il PSPath (funziona con i cmdlet PowerShell)
+                        $accountRegPath = $account.PSPath
 
                         # IMPOSTA LE FIRME con metodo sicuro (Remove + New)
                         $writeNewOK = Set-RegistryBinaryValue -Path $accountRegPath -Name "New Signature" -Value $signatureBinary
@@ -561,7 +561,6 @@ try {
                             } else {
                                 Write-Log "    [OK] Firma impostata per GUID: $accountGuid" "SUCCESS"
                             }
-                            Write-Log "    Percorso: $accountRegPath" "INFO"
                             $signaturesSet++
                         } else {
                             # ✅ FIX v12.1: Logging dettagliato del fallimento
