@@ -1,7 +1,14 @@
 # ==============================================================================
 # Script: Installa_Firma_GPO.ps1
-# Versione: 12.1 - FIX: Verifica post-scrittura corretta per account singoli
+# Versione: 12.2 - FIX: Scrittura Binary garantita + rimozione policy HKLM
 # Autore: Sandro - IT Specialist Carton Group
+# ==============================================================================
+# Novità v12.2:
+# - FIX CRITICO: Usa Remove + New-ItemProperty invece di Set-ItemProperty
+#   (Set-ItemProperty può scrivere come String invece di Binary)
+# - Rimozione policy HKLM che bloccano dropdown firma (richiede Admin)
+# - Verifica tipo registro (Binary vs String) dopo scrittura
+# - Retry automatico se prima scrittura fallisce
 # ==============================================================================
 # Novità v12.1:
 # - FIX CRITICO: Verifica post-scrittura ora controlla il valore effettivo
@@ -73,8 +80,44 @@ function Compare-ByteArrays {
     return $true
 }
 
+# ========================================================================
+# FUNZIONE: Scrittura sicura Binary nel registro (FIX v12.2)
+# Usa Remove + New invece di Set per garantire il tipo Binary
+# ========================================================================
+function Set-RegistryBinaryValue {
+    param(
+        [string]$Path,
+        [string]$Name,
+        [byte[]]$Value
+    )
+
+    try {
+        # Rimuovi valore esistente (potrebbe essere tipo sbagliato)
+        Remove-ItemProperty -Path $Path -Name $Name -Force -ErrorAction SilentlyContinue
+
+        # Crea nuovo valore come Binary
+        New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType Binary -Force | Out-Null
+
+        # Verifica tipo scritto
+        $regKey = Get-Item -Path $Path -ErrorAction SilentlyContinue
+        if ($regKey) {
+            $valueKind = $regKey.GetValueKind($Name)
+            if ($valueKind -eq [Microsoft.Win32.RegistryValueKind]::Binary) {
+                return $true
+            } else {
+                Write-Log "      [WARN] Tipo scritto: $valueKind (atteso: Binary)" "WARNING"
+                return $false
+            }
+        }
+        return $true
+    } catch {
+        Write-Log "      [ERROR] Scrittura fallita: $_" "ERROR"
+        return $false
+    }
+}
+
 Write-Log "==========================================" "INFO"
-Write-Log "INSTALLAZIONE FIRMA v12.1" "INFO"
+Write-Log "INSTALLAZIONE FIRMA v12.2" "INFO"
 Write-Log "Utente: $env:USERNAME" "INFO"
 Write-Log "Computer: $env:COMPUTERNAME" "INFO"
 Write-Log "Data: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" "INFO"
@@ -111,6 +154,40 @@ try {
             if (Get-ItemProperty -Path $mailSettingsPath -Name $key -ErrorAction SilentlyContinue) {
                 Remove-ItemProperty -Path $mailSettingsPath -Name $key -Force -ErrorAction SilentlyContinue
                 Write-Log "  Rimossa chiave: $mailSettingsPath\$key" "SUCCESS"
+            }
+        }
+    }
+
+    # ✅ FIX v12.2: Rimozione policy HKLM che bloccano dropdown firma (richiede Admin)
+    Write-Log "Rimozione policy HKLM bloccanti (richiede privilegi Admin)..." "INFO"
+
+    $hklmPolicyPaths = @(
+        "HKLM:\Software\Policies\Microsoft\Office\16.0\Common\MailSettings",
+        "HKLM:\Software\Policies\Microsoft\Office\16.0\Outlook\Options\Mail"
+    )
+
+    $hklmBlockingKeys = @(
+        "DisableRoamingSignatures",
+        "DisableRoamingSignaturesTemporaryToggle",
+        "DisableSignatures",
+        "NewSignature",
+        "ReplySignature"
+    )
+
+    foreach ($hklmPath in $hklmPolicyPaths) {
+        if (Test-Path $hklmPath) {
+            foreach ($key in $hklmBlockingKeys) {
+                try {
+                    $existingValue = Get-ItemProperty -Path $hklmPath -Name $key -ErrorAction SilentlyContinue
+                    if ($existingValue) {
+                        Remove-ItemProperty -Path $hklmPath -Name $key -Force -ErrorAction Stop
+                        Write-Log "  Rimossa policy HKLM: $hklmPath\$key" "SUCCESS"
+                    }
+                } catch {
+                    if ($_.Exception.Message -match "richiesta|denied|access|accesso") {
+                        Write-Log "  [ADMIN] Impossibile rimuovere $key - eseguire come Amministratore" "WARNING"
+                    }
+                }
             }
         }
     }
@@ -448,15 +525,30 @@ try {
                             Write-Log "    Account GUID: $accountGuid (email non identificata)" "INFO"
                         }
 
-                        # ✅ FIX v12.0: Converti nome firma in Binary Unicode
+                        # ✅ FIX v12.2: Usa funzione sicura con Remove + New-ItemProperty
                         $signatureBinary = Convert-ToRegistryBinary -Value $SignatureName
 
-                        # IMPOSTA LE FIRME (Binary Unicode, NON String!)
-                        Set-ItemProperty -Path $account.PSPath -Name "New Signature" -Value $signatureBinary -Type Binary -Force -ErrorAction Stop
-                        Set-ItemProperty -Path $account.PSPath -Name "Reply-Forward Signature" -Value $signatureBinary -Type Binary -Force -ErrorAction Stop
+                        # Converti PSPath in path standard per Get-Item
+                        $accountRegPath = $account.PSPath -replace 'Microsoft\.PowerShell\.Core\\Registry::', ''
+
+                        # IMPOSTA LE FIRME con metodo sicuro (Remove + New)
+                        $writeNewOK = Set-RegistryBinaryValue -Path $accountRegPath -Name "New Signature" -Value $signatureBinary
+                        $writeReplyOK = Set-RegistryBinaryValue -Path $accountRegPath -Name "Reply-Forward Signature" -Value $signatureBinary
+
+                        # ✅ FIX v12.2: Se prima scrittura fallisce, riprova una volta
+                        if (-not $writeNewOK -or -not $writeReplyOK) {
+                            Write-Log "    [RETRY] Ritento scrittura..." "WARNING"
+                            Start-Sleep -Milliseconds 500
+                            if (-not $writeNewOK) {
+                                $writeNewOK = Set-RegistryBinaryValue -Path $accountRegPath -Name "New Signature" -Value $signatureBinary
+                            }
+                            if (-not $writeReplyOK) {
+                                $writeReplyOK = Set-RegistryBinaryValue -Path $accountRegPath -Name "Reply-Forward Signature" -Value $signatureBinary
+                            }
+                        }
 
                         # ✅ FIX v12.1: Verifica scrittura CORRETTA - confronta i byte effettivi
-                        $verifyProps = Get-ItemProperty -Path $account.PSPath -ErrorAction SilentlyContinue
+                        $verifyProps = Get-ItemProperty -Path $accountRegPath -ErrorAction SilentlyContinue
                         $actualNewSig = $verifyProps.'New Signature'
                         $actualReplySig = $verifyProps.'Reply-Forward Signature'
 
@@ -469,7 +561,7 @@ try {
                             } else {
                                 Write-Log "    [OK] Firma impostata per GUID: $accountGuid" "SUCCESS"
                             }
-                            Write-Log "    Percorso: $($account.PSPath)" "INFO"
+                            Write-Log "    Percorso: $accountRegPath" "INFO"
                             $signaturesSet++
                         } else {
                             # ✅ FIX v12.1: Logging dettagliato del fallimento
@@ -488,9 +580,11 @@ try {
                                 Write-Log "    [FAIL] Verifica fallita per GUID: $accountGuid ($failReason)" "WARNING"
                             }
 
-                            # ✅ FIX v12.1: Debug info - mostra cosa è stato letto
+                            # ✅ FIX v12.2: Debug info - mostra tipo e valore
                             if ($null -eq $actualNewSig) {
                                 Write-Log "    [DEBUG] New Signature: NULL" "WARNING"
+                            } elseif ($actualNewSig -is [string]) {
+                                Write-Log "    [DEBUG] New Signature: TIPO ERRATO (String invece di Binary)" "WARNING"
                             } else {
                                 Write-Log "    [DEBUG] New Signature: $($actualNewSig.Length) bytes (attesi: $($expectedSignatureBinary.Length))" "WARNING"
                             }
