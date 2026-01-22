@@ -1,7 +1,13 @@
 # ==============================================================================
 # Script: Installa_Firma_GPO.ps1
-# Versione: 12.2 - FIX: Scrittura Binary garantita + rimozione policy HKLM
+# Versione: 12.3 - FIX: Scrittura INLINE con PSPath (risolve bug funzione)
 # Autore: Sandro - IT Specialist Carton Group
+# ==============================================================================
+# Novità v12.3:
+# - FIX CRITICO: Scrittura INLINE usando $account.PSPath direttamente
+#   (quando PSPath viene passato a funzione come stringa perde contesto provider)
+# - Rimossa funzione Set-RegistryBinaryValue che causava errori di path
+# - Scrittura Binary verificata: Remove + New-ItemProperty inline
 # ==============================================================================
 # Novità v12.2:
 # - FIX CRITICO: Usa Remove + New-ItemProperty invece di Set-ItemProperty
@@ -80,38 +86,9 @@ function Compare-ByteArrays {
     return $true
 }
 
-# ========================================================================
-# FUNZIONE: Scrittura sicura Binary nel registro (FIX v12.2)
-# Usa Remove + New invece di Set per garantire il tipo Binary
-# ========================================================================
-function Set-RegistryBinaryValue {
-    param(
-        [string]$Path,
-        [string]$Name,
-        [byte[]]$Value
-    )
-
-    try {
-        # Rimuovi valore esistente (potrebbe essere tipo sbagliato)
-        Remove-ItemProperty -Path $Path -Name $Name -Force -ErrorAction SilentlyContinue
-
-        # Crea nuovo valore come Binary
-        New-ItemProperty -Path $Path -Name $Name -Value $Value -PropertyType Binary -Force | Out-Null
-
-        # Verifica che il valore sia stato scritto
-        $written = Get-ItemProperty -Path $Path -Name $Name -ErrorAction SilentlyContinue
-        if ($written -and $written.$Name) {
-            return $true
-        }
-        return $false
-    } catch {
-        Write-Log "      [ERROR] Scrittura fallita: $_" "ERROR"
-        return $false
-    }
-}
 
 Write-Log "==========================================" "INFO"
-Write-Log "INSTALLAZIONE FIRMA v12.2" "INFO"
+Write-Log "INSTALLAZIONE FIRMA v12.3" "INFO"
 Write-Log "Utente: $env:USERNAME" "INFO"
 Write-Log "Computer: $env:COMPUTERNAME" "INFO"
 Write-Log "Data: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" "INFO"
@@ -519,30 +496,20 @@ try {
                             Write-Log "    Account GUID: $accountGuid (email non identificata)" "INFO"
                         }
 
-                        # ✅ FIX v12.2: Usa funzione sicura con Remove + New-ItemProperty
+                        # ✅ FIX v12.3: SCRITTURA INLINE usando $account.PSPath direttamente
+                        # (quando PSPath viene passato a funzione come stringa perde contesto provider)
                         $signatureBinary = Convert-ToRegistryBinary -Value $SignatureName
 
-                        # Usa direttamente il PSPath (funziona con i cmdlet PowerShell)
-                        $accountRegPath = $account.PSPath
+                        # Rimuovi valori esistenti (potrebbero essere tipo sbagliato)
+                        Remove-ItemProperty -Path $account.PSPath -Name "New Signature" -Force -ErrorAction SilentlyContinue
+                        Remove-ItemProperty -Path $account.PSPath -Name "Reply-Forward Signature" -Force -ErrorAction SilentlyContinue
 
-                        # IMPOSTA LE FIRME con metodo sicuro (Remove + New)
-                        $writeNewOK = Set-RegistryBinaryValue -Path $accountRegPath -Name "New Signature" -Value $signatureBinary
-                        $writeReplyOK = Set-RegistryBinaryValue -Path $accountRegPath -Name "Reply-Forward Signature" -Value $signatureBinary
-
-                        # ✅ FIX v12.2: Se prima scrittura fallisce, riprova una volta
-                        if (-not $writeNewOK -or -not $writeReplyOK) {
-                            Write-Log "    [RETRY] Ritento scrittura..." "WARNING"
-                            Start-Sleep -Milliseconds 500
-                            if (-not $writeNewOK) {
-                                $writeNewOK = Set-RegistryBinaryValue -Path $accountRegPath -Name "New Signature" -Value $signatureBinary
-                            }
-                            if (-not $writeReplyOK) {
-                                $writeReplyOK = Set-RegistryBinaryValue -Path $accountRegPath -Name "Reply-Forward Signature" -Value $signatureBinary
-                            }
-                        }
+                        # Crea nuovi valori come Binary
+                        New-ItemProperty -Path $account.PSPath -Name "New Signature" -Value $signatureBinary -PropertyType Binary -Force | Out-Null
+                        New-ItemProperty -Path $account.PSPath -Name "Reply-Forward Signature" -Value $signatureBinary -PropertyType Binary -Force | Out-Null
 
                         # ✅ FIX v12.1: Verifica scrittura CORRETTA - confronta i byte effettivi
-                        $verifyProps = Get-ItemProperty -Path $accountRegPath -ErrorAction SilentlyContinue
+                        $verifyProps = Get-ItemProperty -Path $account.PSPath -ErrorAction SilentlyContinue
                         $actualNewSig = $verifyProps.'New Signature'
                         $actualReplySig = $verifyProps.'Reply-Forward Signature'
 
