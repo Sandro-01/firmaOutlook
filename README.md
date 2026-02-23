@@ -1,6 +1,6 @@
 ---
 page_type: sample
-urlFragment: outlook-add-in-hello-world
+urlFragment: outlook-add-in-signature
 products:
   - office-add-ins
   - office-outlook
@@ -12,18 +12,18 @@ extensions:
   technologies:
     - Add-ins
   createdDate: '10/11/2021 10:00:00 AM'
-description: 'Create a simple Outlook add-in that displays hello world.'
+description: 'Create an Outlook add-in that inserts an email signature.'
 ---
 
-# Create an Outlook add-in that displays hello world
+# Create an Outlook add-in that inserts an email signature
 
 ## Summary
 
-Learn how to build the simplest Office Add-in with only a manifest, HTML web page, and a logo. This sample will help you understand the fundamental parts of an Office Add-in.
+Learn how to build an Office Add-in with only a manifest, HTML web page, and a logo. This sample will help you understand the fundamental parts of an Office Add-in and how to insert a custom email signature in Outlook.
 
 ## Features
 
-- Display hello world in an Outlook email message.
+- Insert an email signature in a new Outlook message.
 - Learn fundamentals of the manifest.
 - Learn how to initialize the Office JavaScript API library.
 - Interact with message content through Office JavaScript APIs.
@@ -44,20 +44,20 @@ The sample contained in this folder is a sample that is designed to run in Outlo
 
 ## Key components
 
-The hello world sample implements the **Manifest** and **Web app** components identified in [Components of an Office Add-in](https://learn.microsoft.com/office/dev/add-ins/overview/office-add-ins#components-of-an-office-add-in).
+This sample implements the **Manifest** and **Web app** components identified in [Components of an Office Add-in](https://learn.microsoft.com/office/dev/add-ins/overview/office-add-ins#components-of-an-office-add-in).
 
 ### Manifest
 
 The manifest file is an XML file that describes your add-in to Office. It contains information such as a unique identifier, name, what buttons to show on the ribbon, and more. Importantly the manifest provides URL locations for where Office can find and download the add-in's resource files.
 
-The hello world sample contains two manifest files to support two different web hosting scenarios.
+This sample contains two manifest files to support two different web hosting scenarios.
 
-- **manifest.xml**: This manifest file gets the add-in's HTML page from the original GitHub repo location. This is the quickest way to try out the sample. To get started running the add-in with this manifest, see [Run the sample on Outlook on Windows or Mac](#run-the-sample-on-outlook-on-windows-or-mac).
-- **manifest.localhost.xml**: This manifest file gets the add-in's HTML page from a local web server that you configure. Use this manifest if you want to change the code and experiment. For more information, see [Configure a localhost web server](#configure-a-localhost-web-server).
+- **manifest.xml**: This manifest file gets the add-in's HTML page from the original GitHub repo location. This is the quickest way to try out the sample. To get started running the add-in with this manifest, see [Run the sample on Outlook on Web](#run-the-sample-on-outlook-on-web).
+- **manifest-localhost.xml**: This manifest file gets the add-in's HTML page from a local web server that you configure. Use this manifest if you want to change the code and experiment. For more information, see [Configure a localhost web server](#configure-a-localhost-web-server).
 
 ### Web app
 
-The hello world sample implements a task pane named **taskpane.html** that contains HTML and JavaScript. The **taskpane.html** file contains all the code necessary to display a task pane, interact with the user, and write "Hello world!" into a new email message.
+This sample implements a task pane named **taskpane.html** that contains HTML and JavaScript. The **taskpane.html** file contains all the code necessary to display a task pane, interact with the user, and insert the email signature into a new email message.
 
 ### Initialize the Office JavaScript API library
 
@@ -69,15 +69,15 @@ Office.onReady((info) => {});
 
 ### Write to the email message
 
-When the user chooses the **Say hello** button, the `sayHello()` function is called as shown in the following code sample. This function then calls `Office.context.mailbox.item.body.setAsync()` which is an Office JavaScript API. The `setAsync()` method overwrites the body of the message with "Hello world!". Then it calls the anonymous callback method `function (asyncResult)`. Most Outlook functions in the Office JavaScript API use this callback pattern. In this sample, the callback method checks that the call was successful. If not it writes an error message to the console.
+When the user chooses the **Insert Signature** button, the `sayHello()` function is called as shown in the following code sample. This function then calls `Office.context.mailbox.item.body.setAsync()` which is an Office JavaScript API. The `setAsync()` method overwrites the body of the message with the email signature. Then it calls the anonymous callback method `function (asyncResult)`. Most Outlook functions in the Office JavaScript API use this callback pattern. In this sample, the callback method checks that the call was successful. If not it writes an error message to the console.
 
 ```javascript
 /**
- * Writes 'Hello world!' to a new message body.
+ * Writes the email signature to a new message body.
  */
 function sayHello() {
   Office.context.mailbox.item.body.setAsync(
-    'Hello world!',
+    'Best regards, Sandro',
     {
       coercionType: 'html', // Write text as HTML
     },
@@ -96,7 +96,7 @@ For more information see [Build your first Outlook add-in](https://learn.microso
 
 ## Run the sample on Outlook on Web
 
-An Office Add-in requires you to configure a web server to provide all the resources, such as HTML, image, and JavaScript files. The hello world sample is configured so that the files are hosted directly from this GitHub repo.
+An Office Add-in requires you to configure a web server to provide all the resources, such as HTML, image, and JavaScript files. This sample is configured so that the files are hosted directly from this GitHub repo.
 
 The process for sideloading an add-in in Outlook on the web depends upon whether you are using the new or classic version.
 
@@ -152,23 +152,19 @@ The process for sideloading an add-in in Outlook on the web depends upon whether
 > Note: The previous steps are from [Sideload Outlook add-ins for testing](https://learn.microsoft.com/office/dev/add-ins/outlook/sideload-outlook-add-ins-for-testing)
 
 1. Create a new email message.
-1. Choose the **More compose actions ...** button, and then choose **Hello world**. The add-in will insert "Hello world!" into the body of the email message.
-
-![Screen shot of new email message in Outlook showing the more compose actions menu and hello world button](../images/outlook-open-hello-world-add-in.png)
+1. Choose the **More compose actions ...** button, and then choose **Email Signature**. The add-in will insert the email signature into the body of the email message.
 
 ## Run the sample on Outlook on Windows or Mac
 
-Office Add-ins are cross-platform so you can also run them on Windows, Mac, and iPad. The following links will take you to documentation for how to sideload on Windows, Mac, or iPad. Be sure you have a local copy of the manifest.xml file for the Hello world sample. Then follow the sideloading instructions for your platform.
+Office Add-ins are cross-platform so you can also run them on Windows, Mac, and iPad. The following links will take you to documentation for how to sideload on Windows, Mac, or iPad. Be sure you have a local copy of the manifest.xml file. Then follow the sideloading instructions for your platform.
 
 - [Sideload Outlook add-in on Windows or Mac](https://learn.microsoft.com/office/dev/add-ins/outlook/sideload-outlook-add-ins-for-testing#outlook-on-the-desktop)
 
 ## Test the sample on Outlook
 
-1. Verify that the add-in loaded successfully. You will see a **Hello World** button on the Message tab on the ribbon.
-2. Choose the **Hello World** button on the Ribbon to see the Add-in Taskpane with the text "This add-in will insert the text 'Hello world!' in a new message."
-3. Choose the **Say hello** button to insert "Hello world!" in the message body.
-
-![Screen shot of new email message in Outlook showing the hello world button and taskpane](../images/outlook-for-windows-new-message.png)
+1. Verify that the add-in loaded successfully. You will see a **Signature** button on the Message tab on the ribbon.
+2. Choose the **Signature** button on the Ribbon to see the Add-in Taskpane with the text "This add-in will insert the signature in a new email message."
+3. Choose the **Insert Signature** button to insert the email signature in the message body.
 
 ## Configure a localhost web server and run the sample from localhost
 
@@ -197,7 +193,7 @@ If you prefer to configure a web server and host the add-in's web files from you
 
    The previous command will display the folder location where it generated the certificate files.
 
-6. Go to the folder location where the certificate files were generated. Copy the localhost.crt and localhost.key files to the hello world sample folder.
+6. Go to the folder location where the certificate files were generated. Copy the localhost.crt and localhost.key files to the sample folder.
 
 7. Run the following command:
 
@@ -207,7 +203,7 @@ If you prefer to configure a web server and host the add-in's web files from you
 
    The http-server will run and host the current folder's files on localhost:3000.
 
-Now that your localhost web server is running, you can sideload the **manifest-localhost.xml** file provided in the outlook-hello-world folder. Using the **manifest-localhost.xml** file, follow the steps in [Run the sample on Outlook on Web](#run-the-sample-on-outlook-on-web) to sideload and run the add-in.
+Now that your localhost web server is running, you can sideload the **manifest-localhost.xml** file provided in the sample folder. Using the **manifest-localhost.xml** file, follow the steps in [Run the sample on Outlook on Web](#run-the-sample-on-outlook-on-web) to sideload and run the add-in.
 
 ## Questions and feedback
 

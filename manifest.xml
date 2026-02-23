@@ -8,8 +8,8 @@
   <Version>1.0.0.0</Version>
   <ProviderName>Contoso</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="Hello world" />
-  <Description DefaultValue="A simple hello world Office Add-in." />
+  <DisplayName DefaultValue="Email Signature" />
+  <Description DefaultValue="An Outlook add-in to insert your email signature." />
   <IconUrl
     DefaultValue="https://officedev.github.io/Office-Add-in-samples/Samples/hello-world/outlook-hello-world/assets/icon-32.png" />
   <HighResolutionIconUrl
@@ -93,12 +93,12 @@
           DefaultValue="https://officedev.github.io/Office-Add-in-samples/Samples/hello-world/outlook-hello-world/taskpane.html" />
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="CommandsGroup.Label" DefaultValue="Contoso Add-in" />
-        <bt:String id="TaskpaneButton.Label" DefaultValue="Hello world" />
-        <bt:String id="TaskpaneButton.SupertipTitle" DefaultValue="Hello world" />
+        <bt:String id="CommandsGroup.Label" DefaultValue="Signature Add-in" />
+        <bt:String id="TaskpaneButton.Label" DefaultValue="Signature" />
+        <bt:String id="TaskpaneButton.SupertipTitle" DefaultValue="Insert Signature" />
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="TaskpaneButton.SupertipText" DefaultValue="Open the Hello world add-in" />
+        <bt:String id="TaskpaneButton.SupertipText" DefaultValue="Open the panel to insert your email signature" />
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>
